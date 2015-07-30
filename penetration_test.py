@@ -9,11 +9,10 @@ current_path = os.path.dirname(os.path.abspath(__file__))
 # ===========================================
 
 userName = "olegsfinest"
-repoName = "test6"
+repoName = "test7"
 tailrToken = "6c8369343aa0754741225b6f161bb7f0bcd1d388"
 contentType = "application/n-triples"
 urlListFilePath = "urls2.txt"
-key = "http://rdf.data-vocabulary.org/rdf.xml"
 
 concurrency_limit = 30	
 
@@ -22,7 +21,7 @@ concurrency_limit = 30
 # ===========================================
 
 # number of lines that will be added every iteration
-lineSteps = 100000
+lineSteps = 10000
 # if true, the file will be emtied. If False. the script will start with the current number of lines
 startNew = True
 filePath = current_path+"/penet.nt"
@@ -99,7 +98,7 @@ while len(failedRequestsUrls) == 0:
 			file.write(tmpStr)
 		lineCount += 1
 
-	print ("\n \nTrying with "+ str(lineCount) + "lines now")
+	print ("\n \nTrying with "+ str(lineCount) + " lines now")
 	# push
 	startTime = time.time()
 	push()
