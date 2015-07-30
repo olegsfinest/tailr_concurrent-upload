@@ -26,7 +26,7 @@ currentConnections = 0
 failedRequestsUrls = {}
 
 
-concurrencyLimit = 100
+concurrencyLimit = 150
 #config
 userName = "olegsfinest"
 repoName = "test6"
@@ -70,19 +70,15 @@ def processFile(fsrcpath):
 				if (currentGraph != g):
 					if (currentGraph != ''):
 						# logging.debug("-- Write " + currentGraph + "\n" + "\n".join(graphContents[currentGraph]))
-						logging.debug("-- Pushing: " + currentGraph + "\n")
-						global currentConnections
-						currentConnections = currentConnections + 1
-						logging.debug(" ================ Current Connections: " + str(currentConnections) + "\n")
-
-						# TODO fetch date of resource somehow, otherwise server will use its own time
-						params={'key':currentGraph}
-						#asynchronus put-request
-						req = grequests.put(apiURI, params=params, headers=header, data=("\n".join(graphContents[currentGraph])), hooks={'response': printResponse})
-						grequests.send(req, pool)
-
+						push(currentGraph, ("\n".join(graphContents[currentGraph])), pool)
 						graphContents[currentGraph].clear()
 						numberOfGraphs += 1
+
+						# # Nummber of Connections Logging
+						# global currentConnections
+						# currentConnections = currentConnections + 1
+						# logging.debug(" === Current Connections: " + str(currentConnections) + "\n")
+
 					if (g in graphContents.keys()):
 						logging.error("-- Duplicate graph: " + g)
 					currentGraph = g
@@ -102,6 +98,16 @@ def processQuad(quad):
 	s, p , o, g = spog[0], spog[1], " ".join(spog[2:-1]), spog[-1]
 	#logging.debug("+++ SPOG = " + s + " | " + p + " | " + o + " | " + g)
 	return s, p, o, g
+
+
+def push(key, payload, pool):
+	logging.debug("+++++ Pushing: " + key + "\n")
+
+	# TODO fetch date of resource somehow, otherwise server will use its own time
+	params={'key':key}
+	#asynchronus put-request
+	req = grequests.put(apiURI, params=params, headers=header, data=payload, hooks={'response': printResponse})
+	grequests.send(req, pool)
 
 
 def printResponse(response, *args, **kwargs) :
