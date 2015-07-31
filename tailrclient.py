@@ -36,6 +36,8 @@ contentType = "application/n-triples"
 header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
 
+urlOutputfileName = "graphUrls.md"
+
 
 
 def main(argv):
@@ -43,7 +45,8 @@ def main(argv):
 
 	startTime = time.time()
 	processFile(os.path.join(srcpath, 'data_sorted.nq.gz'))
-	logging.info("## " + str(len(failedRequestsUrls))+ " requests failed")
+	logging.info("## " + str(len(failedRequestsUrls))+ " requests failed: ")
+	printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
 
 def processFile(fsrcpath):
@@ -71,9 +74,10 @@ def processFile(fsrcpath):
 					if (currentGraph != ''):
 						# logging.debug("-- Write " + currentGraph + "\n" + "\n".join(graphContents[currentGraph]))
 						push(currentGraph, ("\n".join(graphContents[currentGraph])), pool)
+						addUrl(currentGraph)
 						graphContents[currentGraph].clear()
 						numberOfGraphs += 1
-
+						
 						# # Nummber of Connections Logging
 						# global currentConnections
 						# currentConnections = currentConnections + 1
@@ -91,6 +95,7 @@ def processFile(fsrcpath):
 		# logging.debug("-- Write " + currentGraph + "\n" + "\n".join(graphContents[currentGraph]))
 		print("\n")
 		logging.info("## Finished pushing " + str(numberOfGraphs) + " graphs")
+		logging.info("## " + str(numberOfGraphs - len(failedRequestsUrls))+ " requests were succesfull")
 
 def processQuad(quad):
 	#logging.debug("+++ Quad: " + quad)
@@ -118,6 +123,18 @@ def printResponse(response, *args, **kwargs) :
 	if response.status_code != 200:
 		failedRequestsUrls[response.url] = response.status_code
 
+def addUrl(url):
+	with open(urlOutputfileName, 'a') as file:
+		file.write(url+"\n")
+
+def saveUrls(urls):
+	with open(urlOutputfileName, 'a') as file:
+		for url in urls:
+			file.write(url+"\n")
+
+def printFailedRequests():
+	for k, v in failedRequestsUrls:
+		print(k + " returned status-code: "+ v)
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
