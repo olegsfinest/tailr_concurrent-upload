@@ -27,6 +27,7 @@ srcpath = "/Users/Oleg1/Documents/Wille/Studium/LinkedData/tailr_concurrent-uplo
 currentConnections = 0
 
 failedRequestsUrls = {}
+failedRequests = 0
 
 
 concurrencyLimit = 150
@@ -40,7 +41,7 @@ header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
 
 urlOutputfileName = "graphUrls.md"
-
+failedRequestsOutputfilename = "failedUrls.md"
 
 
 def main(argv):
@@ -48,8 +49,8 @@ def main(argv):
 
 	startTime = time.time()
 	processFile(os.path.join(srcpath, 'data_sorted.nq.gz'))
-	logging.info("## " + str(len(failedRequestsUrls))+ " requests failed: ")
-	printFailedRequests()
+	logging.info("## " + str(failedRequests)+ " requests failed: ")
+	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
 
 def processFile(fsrcpath):
@@ -85,7 +86,7 @@ def processFile(fsrcpath):
 
 						push(key, ("\n".join(graphContents[currentGraph])), pool)
 
-						addUrl(currentGraph)
+						addUrlToFile(currentGraph, urlOutputfileName)
 						graphContents[currentGraph].clear()
 						numberOfGraphs += 1
 
@@ -109,7 +110,7 @@ def processFile(fsrcpath):
 
 		print("\n")
 		logging.info("## Finished pushing " + str(numberOfGraphs) + " graphs")
-		logging.info("## " + str(numberOfGraphs - len(failedRequestsUrls))+ " requests were succesfull")
+		logging.info("## " + str(numberOfGraphs - failedRequests)+ " requests were succesfull")
 
 def processQuad(quad):
 	#logging.debug("+++ Quad: " + quad)
@@ -140,12 +141,14 @@ def printResponse(response, *args, **kwargs) :
 	# currentConnections = currentConnections - 1
 	#if not ok, store the uri with http-code
 	if response.status_code != 200:
-		failedRequestsUrls[response.url] = response.status_code
 		logging.error("-- "+response.url +" returned status-code: "+response.status-code)
+		addUrlToFile(response.url, failedRequestsOutputfilename, "; http-status-code:"+respone.status-code)
+		global failedRequests
+		failedRequests += 1
 
-def addUrl(url):
-	with open(urlOutputfileName, 'a') as file:
-		file.write(url+"\n")
+def addUrlToFile(url, filepath, annotation=""):
+	with open(filepath, 'a') as file:
+		file.write(url+" "+annotation+"\n")
 
 # currently not used
 # this would require a list with all urls. urls are currently appended to file right away with addUrl()
