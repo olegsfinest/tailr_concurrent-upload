@@ -9,6 +9,7 @@ $Id$
 
 import os, errno
 import sys, getopt
+sys.path.append("/home/paulw/pythonpackages/lib/python2.7/site-packages")
 import datetime
 import gzip
 import requests
@@ -17,7 +18,9 @@ import time
 from collections import defaultdict
 import logging
 logger = logging.getLogger('tailrclient.' + __name__)
-logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(filename='tailrclient.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
+logging.getLogger().addHandler(logging.StreamHandler())
+
 
 srcpath = "/Users/Oleg1/Documents/Wille/Studium/LinkedData/tailr_concurrent-upload"
 
@@ -41,7 +44,7 @@ urlOutputfileName = "graphUrls.md"
 
 
 def main(argv):
-	logging.warn("Hello.")
+	logging.warn("====================================== Hello.")
 
 	startTime = time.time()
 	processFile(os.path.join(srcpath, 'data_sorted.nq.gz'))
@@ -133,11 +136,12 @@ def pushWithFile(key, filePath, pool):
 
 def printResponse(response, *args, **kwargs) :
 	# print (response.url +" returned status code: " + str(response.status_code))
-	global currentConnections
-	currentConnections = currentConnections - 1
+	# global currentConnections
+	# currentConnections = currentConnections - 1
 	#if not ok, store the uri with http-code
 	if response.status_code != 200:
 		failedRequestsUrls[response.url] = response.status_code
+		logging.error("-- "+response.url +" returned status-code: "+response.status-code)
 
 def addUrl(url):
 	with open(urlOutputfileName, 'a') as file:
