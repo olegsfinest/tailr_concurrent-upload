@@ -50,12 +50,29 @@ dataFilename = config.dataFilename
 header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
 urlPrefixLength = len(apiURI)+len('?key=')
+urlSuffixLenght = 0
+uploadDate = ""
+
+if config.useOwnDate:
+	if config.getDateFromPath:
+		#gets the name of the current folder, not path
+		foldername = os.path.basename(os.path.normpath(os.path.dirname(os.path.realpath(__file__))))
+		uploadDate = foldername[0:4]+"-"+foldername[4:6]+"-"+foldername[6:8]+"-00:00:00"
+	else:
+		uploadDate = config.uploadDate
+	urlSuffixLenght = len(uploadDate)+len('?datetime=')
+
+
+
+
+
+
+
 
 # # in this file every key, that was failed to push will be saved
 failedRequestsOutputfilename = config.failedRequestsOutputfilename
 # # in this file every quad containing to a key, that was failed to push to will be saved
 failedRequestsTriplesFilename = config.failedRequestsTriplesFilename
-
 
 
 # currentConnections = 0
@@ -163,10 +180,13 @@ def testTriples(key):
 
 
 def push(key, payload, pool):
-	logging.debug("+++++ Pushing: " + key + "\n")
+	# logging.debug("+++++ Pushing: " + key + "\n")
 
 	# TODO fetch date of resource somehow, otherwise server will use its own time
-	params={'key':key}
+	if config.useOwnDate:
+		params={'key':key,'datetime':uploadDate}
+	else:
+		params={'key':key}
 	#asynchronus put-request
 	req = grequests.put(apiURI, params=params, headers=header, data=payload, hooks={'response': printResponse})
 	grequests.send(req, pool)
@@ -196,7 +216,7 @@ def printResponse(response, *args, **kwargs) :
 
 	# url in response is url encoded unicode -> convert back to normal string
 	# the response object also has no list of the params, so we have to manually cut the key out
-	url = urllib.unquote(response.url[urlPrefixLength:len(response.url)])
+	url = urllib.unquote(response.url[urlPrefixLength:len(response.url)-urlSuffixLenght])
 
 	if response.status_code != 200:
 		logging.error("-- "+url +" returned status-code: "+str(response.status_code))
