@@ -7,12 +7,12 @@ import time
 # configuration-variables 
 # ===========================================
 userName = "olegsfinest"
-repoName = "test6"
+repoName = "test5"
 tailrToken = "6c8369343aa0754741225b6f161bb7f0bcd1d388"
 contentType = "application/n-triples"
 urlListFilePath = "urls.txt"
 #workaround for testing
-filePath = "/Users/Oleg1/Documents/Wille/Studium/LinkedData/tailr_concurrent-upload/penet.nt"
+filePath = "/Users/Oleg1/Documents/Wille/Studium/LinkedData/tailr_concurrent-upload/tmpfile.nt"
 
 useOwnDate = False
 

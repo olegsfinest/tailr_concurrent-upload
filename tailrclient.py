@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Create a file for each resource for a set of DBpedia versions from the dumps in order to diff the resources.
 
@@ -17,12 +18,18 @@ import grequests
 import time
 from collections import defaultdict
 import logging
+import threading
+import urllib
+from copy import deepcopy
 logger = logging.getLogger('tailrclient.' + __name__)
 logging.basicConfig(filename='tailrclient.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 logging.getLogger().addHandler(logging.StreamHandler())
 
+# config variables
+import config
 
-srcpath = "/Users/Oleg1/Documents/Wille/Studium/LinkedData/tailr_concurrent-upload"
+
+#config
 
 currentConnections = 0
 
@@ -30,25 +37,45 @@ failedRequestsUrls = {}
 failedRequests = 0
 
 
-concurrencyLimit = 150
+srcpath = config.srcpath
+concurrencyLimit = config.concurrencyLimit
 #config
-userName = "olegsfinest"
-repoName = "test9"
-tailrToken = "6c8369343aa0754741225b6f161bb7f0bcd1d388"
-contentType = "application/n-triples"
+userName = config.userName
+repoName = config.repoName
+tailrToken = config.tailrToken
+contentType = config.contentType
+
+dataFilename = config.dataFilename
 
 header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
+urlPrefixLength = len(apiURI)+len('?key=')
 
-urlOutputfileName = "graphUrls.md"
-failedRequestsOutputfilename = "failedUrls.md"
+# # in this file every key, that was failed to push will be saved
+failedRequestsOutputfilename = config.failedRequestsOutputfilename
+# # in this file every quad containing to a key, that was failed to push to will be saved
+failedRequestsTriplesFilename = config.failedRequestsTriplesFilename
 
+
+
+# currentConnections = 0
+
+# failedRequestsUrls = {}
+# failedRequests = 0
+
+
+
+# request response objects do not have the original payload with them
+# therefore we thore the payloads, until the request is finished
+tmpgraphContents = {} 
+
+#responses come asynchronus, too, therefore avoid two failed responses to write to the file
+fileWriteLock = threading.Lock()
+fileWriteUrlLock = threading.Lock()
 
 def main(argv):
-	logging.warn("====================================== Hello.")
-
 	startTime = time.time()
-	processFile(os.path.join(srcpath, 'data_sorted.nq.gz'))
+	processFile(os.path.join(srcpath, dataFilename))
 	logging.info("## " + str(failedRequests)+ " requests failed: ")
 	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
@@ -65,6 +92,7 @@ def processFile(fsrcpath):
 	# i = 0
 	currentGraph = ''
 	graphContents = defaultdict(set)
+
 
 	pool = grequests.Pool(concurrencyLimit)
 
@@ -84,9 +112,15 @@ def processFile(fsrcpath):
 						if checkForBrackets(key):
 							key = cutoffBrackets(key)
 
+						saveTriplesTemporary(key, graphContents[currentGraph])
+
+
 						push(key, ("\n".join(graphContents[currentGraph])), pool)
 
-						addUrlToFile(currentGraph, urlOutputfileName)
+
+						# # would store every key that was pushed to
+						# addUrlToFile(currentGraph, urlOutputfileName)
+
 						graphContents[currentGraph].clear()
 						numberOfGraphs += 1
 
@@ -120,6 +154,14 @@ def processQuad(quad):
 	return s, p, o, g
 
 
+def testTriples(key):
+	global tmpgraphContents
+	print "\n 4: tmpgraphContents["+key+"] in testTriples"
+	print tmpgraphContents[key]
+
+
+
+
 def push(key, payload, pool):
 	logging.debug("+++++ Pushing: " + key + "\n")
 
@@ -135,16 +177,49 @@ def pushWithFile(key, filePath, pool):
 	req = grequests.put(apiURI, params=params, headers=header, data=open(filePath, 'rb'), hooks={'response': printResponse})
 	grequests.send(req, pool)
 
+def saveTriplesTemporary(key, payload):
+	global tmpgraphContents
+	tmpgraphContents[key] = deepcopy(payload)
+
+
+def deleteTemporaryTriples(key):
+	global tmpgraphContents
+	del tmpgraphContents[key]
+
+
+
 def printResponse(response, *args, **kwargs) :
 	# print (response.url +" returned status code: " + str(response.status_code))
+	
 	# global currentConnections
 	# currentConnections = currentConnections - 1
-	#if not ok, store the uri with http-code
+
+	# url in response is url encoded unicode -> convert back to normal string
+	# the response object also has no list of the params, so we have to manually cut the key out
+	url = urllib.unquote(response.url[urlPrefixLength:len(response.url)])
+
 	if response.status_code != 200:
-		logging.error("-- "+response.url +" returned status-code: "+response.status-code)
-		addUrlToFile(response.url, failedRequestsOutputfilename, "; http-status-code:"+respone.status-code)
+		logging.error("-- "+url +" returned status-code: "+str(response.status_code))
+
+		#If the request failed, save the urls and the related triples to files
+		fileWriteUrlLock.acquire()
+		try:
+			addUrlToFile(url, failedRequestsOutputfilename, "; http-status-code: "+str(response.status_code))
+		finally:
+			fileWriteUrlLock.release()
+
+		fileWriteLock.acquire()
+		try:
+			addQuadsToFile(url, failedRequestsTriplesFilename)
+		finally:
+			fileWriteLock.release()
+		
 		global failedRequests
 		failedRequests += 1
+
+	# in any way delete the temporary saved triples. Anything that went wrong is in a file by now
+	deleteTemporaryTriples(url)
+
 
 def addUrlToFile(url, filepath, annotation=""):
 	with open(filepath, 'a') as file:
@@ -157,6 +232,17 @@ def saveUrls(urls):
 		for url in urls:
 			file.write(url+"\n")
 
+def addQuadsToFile(key, filepath):
+	global tmpgraphContents
+	with open(filepath, 'a') as file:
+		for item in tmpgraphContents[key]:
+			file.write(item[0:len(item)-1]+"<"+key+"> .\n")
+
+def addQuadsToFileFromSet(tripleSet, key, filepath):
+	global tmpgraphContents
+	with open(filepath, 'a') as file:
+		for item in tripleSet:
+			file.write(item[0:len(item)-1]+"<"+key+"> .\n")
 
 def checkForBrackets(s):
 	if s[0] == "<" and s[-1] == ">":

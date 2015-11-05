@@ -1,0 +1,32 @@
+config.py
+data.nq.gz
+data_sorted.nq.gz
+data_sorted.nq.gz 2.gz
+data_sorted.nq.gz 3
+data_sorted.nq.gz 3.gz
+exampledata.md
+filelen.py
+graphUrls
+graphUrls.md
+log/
+penet.nt
+regextest.py
+tailr_uploadClient.sublime-project
+tailr_uploadClient.sublime-workspace
+tailrclient.log
+test.nt
+test.nt.gz
+test.py
+test2.nt
+test2.nt Kopie
+test2.nt.gz
+tmpfile.nq
+tmpfile.nt
+.DS_Store
+config.pyc
+data_sorted.nq
+data_sorted2.nq.gz
+dicttest.py
+failedTriples.md
+failedUrls.md
+upload_script.py

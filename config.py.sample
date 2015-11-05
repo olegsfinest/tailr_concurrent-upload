@@ -1,0 +1,17 @@
+###### Save this file to config.py and edit the variables to your needs#######
+
+
+srcpath = "path/to/file"
+concurrencyLimit = 250
+
+userName = "username"
+repoName = "reponame"
+tailrToken = "token"
+contentType = "application/n-triples"
+
+urlOutputfileName = "graphUrls.md"
+
+# in this file every key, that was failed to push will be saved
+failedRequestsOutputfilename = "failedUrls.md"
+# in this file every quad containing to a key, that was failed to push to will be saved
+failedRequestsTriplesFilename = "failedTriples.md"
