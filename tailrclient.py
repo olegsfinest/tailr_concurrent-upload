@@ -49,18 +49,24 @@ dataFilename = config.dataFilename
 
 header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
+# are needed to extract the ?key-param from response-url later on
+# a requests.Response object does not contain the params itself
 urlPrefixLength = len(apiURI)+len('?key=')
 urlSuffixLenght = 0
 uploadDate = ""
+useOwnDate = config.useOwnDate
 
-if config.useOwnDate:
+
+if useOwnDate:
 	if config.getDateFromPath:
-		#gets the name of the current folder, not path
+		# gets the name of the current folder, not path
 		foldername = os.path.basename(os.path.normpath(os.path.dirname(os.path.realpath(__file__))))
+		# extracts the components of the folders name. format must be YYYYMMDD. 
+		# hours,minutes and seconds not used, can be set in config.py
 		uploadDate = foldername[0:4]+"-"+foldername[4:6]+"-"+foldername[6:8]+"-00:00:00"
 	else:
 		uploadDate = config.uploadDate
-	urlSuffixLenght = len(uploadDate)+len('?datetime=')
+	urlSuffixLenght = len(uploadDate)+len('&datetime=')
 
 
 
@@ -86,14 +92,16 @@ failedRequestsTriplesFilename = config.failedRequestsTriplesFilename
 # therefore we thore the payloads, until the request is finished
 tmpgraphContents = {} 
 
-#responses come asynchronus, too, therefore avoid two failed responses to write to the file
+#responses come asynchronus, too, therefore avoid two failed responses to write to the file simultaniously
 fileWriteLock = threading.Lock()
 fileWriteUrlLock = threading.Lock()
+httpErrorCodes = {}
 
 def main(argv):
 	startTime = time.time()
 	processFile(os.path.join(srcpath, dataFilename))
 	logging.info("## " + str(failedRequests)+ " requests failed: ")
+	printErrorCodes()
 	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
 
@@ -183,7 +191,7 @@ def push(key, payload, pool):
 	# logging.debug("+++++ Pushing: " + key + "\n")
 
 	# TODO fetch date of resource somehow, otherwise server will use its own time
-	if config.useOwnDate:
+	if useOwnDate:
 		params={'key':key,'datetime':uploadDate}
 	else:
 		params={'key':key}
@@ -215,8 +223,9 @@ def printResponse(response, *args, **kwargs) :
 	# currentConnections = currentConnections - 1
 
 	# url in response is url encoded unicode -> convert back to normal string
+	url = urllib.unquote(response.url)
 	# the response object also has no list of the params, so we have to manually cut the key out
-	url = urllib.unquote(response.url[urlPrefixLength:len(response.url)-urlSuffixLenght])
+	url = url[urlPrefixLength:len(url)-urlSuffixLenght]
 
 	if response.status_code != 200:
 		logging.error("-- "+url +" returned status-code: "+str(response.status_code))
@@ -234,6 +243,12 @@ def printResponse(response, *args, **kwargs) :
 		finally:
 			fileWriteLock.release()
 		
+		global httpErrorCodes
+		if response.status_code in httpErrorCodes:
+			httpErrorCodes[response.status_code] += 1
+		else:
+			httpErrorCodes[response.status_code] = 1
+
 		global failedRequests
 		failedRequests += 1
 
@@ -272,8 +287,12 @@ def checkForBrackets(s):
 def cutoffBrackets(s):
 	return s[1:len(s)-1]
 
+def printErrorCodes():
+	for key in httpErrorCodes:
+		print(str(httpErrorCodes[key])+" requests failed with Error-Code: "+ str(key))
+
 def printFailedRequests():
-	for k, v in failedRequestsUrls:
+	for key in failedRequestsUrls:
 		print(k + " returned status-code: "+ v)
 
 if __name__ == "__main__":

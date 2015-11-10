@@ -1,7 +1,10 @@
 ###### Save this file to config.py and edit the variables to your needs#######
+import os
 
 
-srcpath = "path/to/file"
+srcpath = os.path.dirname(os.path.abspath(__file__))
+# srcpath = "path/to/file"
+
 concurrencyLimit = 250
 
 userName = "username"
@@ -17,7 +20,6 @@ failedRequestsOutputfilename = "failedUrls.md"
 failedRequestsTriplesFilename = "failedTriples.md"
 
 dataFilename = 'data_sorted2.nq.gz'
-
 
 useOwnDate = False
 
