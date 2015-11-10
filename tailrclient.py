@@ -13,6 +13,7 @@ import sys, getopt
 sys.path.append("/home/paulw/pythonpackages/lib/python2.7/site-packages")
 import datetime
 import gzip
+import shutil
 import requests
 import grequests
 import time
@@ -104,6 +105,15 @@ def main(argv):
 	printErrorCodes()
 	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
+
+	# compress output files and remove originals
+	logging.info("## Compressing output files. This may take some seconds")
+	with open(failedRequestsOutputfilename, 'rb') as f_in, gzip.open(failedRequestsOutputfilename+'.gz', 'wb') as f_out:
+		shutil.copyfileobj(f_in, f_out)
+	os.remove(failedRequestsOutputfilename)
+	with open(failedRequestsTriplesFilename, 'rb') as f_in, gzip.open(failedRequestsTriplesFilename+'.gz', 'wb') as f_out:
+		shutil.copyfileobj(f_in, f_out)
+	os.remove(failedRequestsTriplesFilename)
 
 def processFile(fsrcpath):
 	if (not os.path.isfile(fsrcpath)):
