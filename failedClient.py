@@ -13,7 +13,6 @@ import sys, getopt
 sys.path.append("/home/paulw/pythonpackages/lib/python2.7/site-packages")
 import datetime
 import gzip
-import shutil
 import requests
 import grequests
 import time
@@ -50,36 +49,13 @@ dataFilename = config.dataFilename
 
 header = {'Authorization':"token "+tailrToken, 'Content-Type':contentType}
 apiURI = "http://tailr.s16a.org/api/"+userName+"/"+repoName
-# are needed to extract the ?key-param from response-url later on
-# a requests.Response object does not contain the params itself
 urlPrefixLength = len(apiURI)+len('?key=')
-urlSuffixLenght = 0
-uploadDate = ""
-useOwnDate = config.useOwnDate
-
-
-if useOwnDate:
-	if config.getDateFromPath:
-		# gets the name of the current folder, not path
-		foldername = os.path.basename(os.path.normpath(os.path.dirname(os.path.realpath(__file__))))
-		# extracts the components of the folders name. format must be YYYYMMDD. 
-		# hours,minutes and seconds not used, can be set in config.py
-		uploadDate = foldername[0:4]+"-"+foldername[4:6]+"-"+foldername[6:8]+"-00:00:00"
-	else:
-		uploadDate = config.uploadDate
-	urlSuffixLenght = len(uploadDate)+len('&datetime=')
-
-
-
-
-
-
-
 
 # # in this file every key, that was failed to push will be saved
 failedRequestsOutputfilename = config.failedRequestsOutputfilename
 # # in this file every quad containing to a key, that was failed to push to will be saved
 failedRequestsTriplesFilename = config.failedRequestsTriplesFilename
+
 
 
 # currentConnections = 0
@@ -93,27 +69,16 @@ failedRequestsTriplesFilename = config.failedRequestsTriplesFilename
 # therefore we thore the payloads, until the request is finished
 tmpgraphContents = {} 
 
-#responses come asynchronus, too, therefore avoid two failed responses to write to the file simultaniously
+#responses come asynchronus, too, therefore avoid two failed responses to write to the file
 fileWriteLock = threading.Lock()
 fileWriteUrlLock = threading.Lock()
-httpErrorCodes = {}
 
 def main(argv):
 	startTime = time.time()
 	processFile(os.path.join(srcpath, dataFilename))
 	logging.info("## " + str(failedRequests)+ " requests failed: ")
-	printErrorCodes()
 	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
-
-	# compress output files and remove originals
-	logging.info("## Compressing output files. This may take some seconds")
-	with open(failedRequestsOutputfilename, 'rb') as f_in, gzip.open(failedRequestsOutputfilename+'.gz', 'wb') as f_out:
-		shutil.copyfileobj(f_in, f_out)
-	os.remove(failedRequestsOutputfilename)
-	with open(failedRequestsTriplesFilename, 'rb') as f_in, gzip.open(failedRequestsTriplesFilename+'.gz', 'wb') as f_out:
-		shutil.copyfileobj(f_in, f_out)
-	os.remove(failedRequestsTriplesFilename)
 
 def processFile(fsrcpath):
 	if (not os.path.isfile(fsrcpath)):
@@ -131,7 +96,7 @@ def processFile(fsrcpath):
 
 	pool = grequests.Pool(concurrencyLimit)
 
-	with gzip.open(fsrcpath, 'r') as f:
+	with open(fsrcpath, 'r') as f:
 		for line in f:
 			line = line.strip()
 			# ignore empty and commented lines
@@ -150,7 +115,7 @@ def processFile(fsrcpath):
 						saveTriplesTemporary(key, graphContents[currentGraph])
 
 
-						push(key, ("\n".join(graphContents[currentGraph])), pool)
+						# push(key, ("\n".join(graphContents[currentGraph])), pool)
 
 
 						# # would store every key that was pushed to
@@ -186,6 +151,25 @@ def processQuad(quad):
 	spog = quad.strip(' .').split()
 	s, p , o, g = spog[0], spog[1], " ".join(spog[2:-1]), spog[-1]
 	#logging.debug("+++ SPOG = " + s + " | " + p + " | " + o + " | " + g)
+	tmpS = ""
+	tmpO = ""
+	if checkForBrackets(s):
+		tmpS = cutoffBrackets(s)
+	else:
+		tmpS = s
+
+	if checkForBrackets(o):
+		tmpO = cutoffBrackets(o)
+	else:
+		tmpO = o
+	
+	if not is_valid_url(tmpS) and not checkForQuotes(tmpS) and not isBlankNode(tmpS):
+		print s + " to " + "_:"+tmpS
+		s = "_:"+tmpS
+
+	if not is_valid_url(tmpO) and not checkForQuotes(tmpO) and not isBlankNode(tmpO):
+		o = "_:"+tmpO
+	
 	return s, p, o, g
 
 
@@ -198,13 +182,10 @@ def testTriples(key):
 
 
 def push(key, payload, pool):
-	# logging.debug("+++++ Pushing: " + key + "\n")
+	#logging.debug("+++++ Pushing: " + key + "\n")
 
 	# TODO fetch date of resource somehow, otherwise server will use its own time
-	if useOwnDate:
-		params={'key':key,'datetime':uploadDate}
-	else:
-		params={'key':key}
+	params={'key':key}
 	#asynchronus put-request
 	req = grequests.put(apiURI, params=params, headers=header, data=payload, hooks={'response': printResponse})
 	grequests.send(req, pool)
@@ -233,9 +214,8 @@ def printResponse(response, *args, **kwargs) :
 	# currentConnections = currentConnections - 1
 
 	# url in response is url encoded unicode -> convert back to normal string
-	url = urllib.unquote(response.url)
 	# the response object also has no list of the params, so we have to manually cut the key out
-	url = url[urlPrefixLength:len(url)-urlSuffixLenght]
+	url = urllib.unquote(response.url[urlPrefixLength:len(response.url)])
 
 	if response.status_code != 200:
 		logging.error("-- "+url +" returned status-code: "+str(response.status_code))
@@ -243,7 +223,7 @@ def printResponse(response, *args, **kwargs) :
 		#If the request failed, save the urls and the related triples to files
 		fileWriteUrlLock.acquire()
 		try:
-			addUrlToFile(url, failedRequestsOutputfilename)
+			addUrlToFile(url, failedRequestsOutputfilename, "; http-status-code: "+str(response.status_code))
 		finally:
 			fileWriteUrlLock.release()
 
@@ -253,12 +233,6 @@ def printResponse(response, *args, **kwargs) :
 		finally:
 			fileWriteLock.release()
 		
-		global httpErrorCodes
-		if response.status_code in httpErrorCodes:
-			httpErrorCodes[response.status_code] += 1
-		else:
-			httpErrorCodes[response.status_code] = 1
-
 		global failedRequests
 		failedRequests += 1
 
@@ -294,16 +268,35 @@ def checkForBrackets(s):
 		return True
 	return False
 
+def checkForQuotes(s):
+	if s[0] == "\"" and s[-1] == "\"":
+		return True
+	return False
+
 def cutoffBrackets(s):
 	return s[1:len(s)-1]
 
-def printErrorCodes():
-	for key in httpErrorCodes:
-		print(str(httpErrorCodes[key])+" requests failed with Error-Code: "+ str(key))
-
 def printFailedRequests():
-	for key in failedRequestsUrls:
+	for k, v in failedRequestsUrls:
 		print(k + " returned status-code: "+ v)
+
+def isBlankNode(s):
+	if s[0] == "_" and s[1] == ":":
+		return True
+	return False
+
+def is_valid_url(url):
+    import re
+    regex = re.compile(
+        r'^https?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return url is not None and regex.search(url)
+
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
+
