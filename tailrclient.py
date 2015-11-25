@@ -106,6 +106,7 @@ def main(argv):
 	# printFailedRequests()
 	logging.info("## This took "+str(time.time() - startTime)+" seconds")
 
+	# TODO check if they exist first
 	# compress output files and remove originals
 	logging.info("## Compressing output files. This may take some seconds")
 	with open(failedRequestsOutputfilename, 'rb') as f_in, gzip.open(failedRequestsOutputfilename+'.gz', 'wb') as f_out:

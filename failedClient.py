@@ -168,6 +168,7 @@ def processQuad(quad):
 		s = "_:"+tmpS
 
 	if not is_valid_url(tmpO) and not checkForQuotes(tmpO) and not isBlankNode(tmpO):
+		print o + " to " + "_:"+tmpO
 		o = "_:"+tmpO
 	
 	return s, p, o, g
